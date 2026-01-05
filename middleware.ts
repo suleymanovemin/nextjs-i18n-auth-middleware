@@ -14,7 +14,26 @@ function getLocale(request: NextRequest): string {
     return match(languages, locales, defaultLocale);
 }
 
-export function middleware(request: NextRequest) {
+/**
+ * Verify user session by checking accessToken with DummyJSON API
+ */
+async function verifyUserSession(accessToken: string): Promise<boolean> {
+    try {
+        const response = await fetch('https://dummyjson.com/auth/me', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        return response.ok;
+    } catch (error) {
+        console.error('Session verification error:', error);
+        return false;
+    }
+}
+
+export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // 1. Dilin URL-də olub-olmadığını yoxla
@@ -28,7 +47,7 @@ export function middleware(request: NextRequest) {
     }
 
     // 2. Auth Məntiqi
-    const token = request.cookies.get("session")?.value;
+    const accessToken = request.cookies.get("accessToken")?.value;
     const currentLocale = pathname.split("/")[1];
     const pathWithoutLocale = pathname.replace(`/${currentLocale}`, "") || "/";
 
@@ -36,12 +55,38 @@ export function middleware(request: NextRequest) {
     const isProtectedRoute = pathWithoutLocale.startsWith("/dashboard");
     const isAuthRoute = pathWithoutLocale.startsWith("/login");
 
-    if (isProtectedRoute && !token) {
-        return NextResponse.redirect(new URL(`/${currentLocale}/login`, request.url));
+    // Protected route - verify user session with API
+    if (isProtectedRoute) {
+        if (!accessToken) {
+            return NextResponse.redirect(new URL(`/${currentLocale}/login`, request.url));
+        }
+
+        // Verify token with DummyJSON API
+        const isValid = await verifyUserSession(accessToken);
+
+        if (!isValid) {
+            // Token is invalid, clear it and redirect to login
+            const response = NextResponse.redirect(new URL(`/${currentLocale}/login`, request.url));
+            response.cookies.delete('accessToken');
+            response.cookies.delete('refreshToken');
+            return response;
+        }
     }
 
-    if (isAuthRoute && token) {
-        return NextResponse.redirect(new URL(`/${currentLocale}/dashboard`, request.url));
+    // Already logged in, redirect to dashboard
+    if (isAuthRoute && accessToken) {
+        // Verify token is still valid
+        const isValid = await verifyUserSession(accessToken);
+
+        if (isValid) {
+            return NextResponse.redirect(new URL(`/${currentLocale}/dashboard`, request.url));
+        } else {
+            // Token invalid, allow access to login page and clear cookies
+            const response = NextResponse.next();
+            response.cookies.delete('accessToken');
+            response.cookies.delete('refreshToken');
+            return response;
+        }
     }
 
     return NextResponse.next();

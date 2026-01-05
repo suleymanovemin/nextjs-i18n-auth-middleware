@@ -25,8 +25,8 @@ This project is a professional starter template built with **Next.js App Router*
 │   └── az.json
 ├── middleware.ts             # Core Auth and i18n logic
 └── next.config.ts            # Next.js configuration
+```
 
---------------------------------------------------------------
 
 # Next.js i18n & Auth Middleware Starter (TypeScript)
 

@@ -1,0 +1,7 @@
+{
+  "auth": {
+    "login": "Login",
+    "welcome": "Welcome to Dashboard",
+    "logout": "Logout"
+  }
+}
